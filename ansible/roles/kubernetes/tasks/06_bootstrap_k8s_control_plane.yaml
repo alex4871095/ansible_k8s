@@ -1,0 +1,262 @@
+---
+- name: create base directories
+  become: true
+  file:
+    path: "{{ item.path }}"
+    mode: 0755
+    state: directory
+  with_items:
+    - {path: "/var/lib/kubernetes"}
+    - {path: "/etc/kubernetes/config"}
+
+- name: download kube-apiserver
+  become: true
+  get_url:
+    url: https://storage.googleapis.com/kubernetes-release/release/v1.10.2/bin/linux/amd64/kube-apiserver
+    dest: /usr/local/bin/kube-apiserver
+    mode: 0755
+
+- name: download kube-controller-manager
+  become: true
+  get_url:
+    url: https://storage.googleapis.com/kubernetes-release/release/v1.10.2/bin/linux/amd64/kube-controller-manager
+    dest: /usr/local/bin/kube-controller-manager
+    mode: 0755
+
+- name: download kube-scheduler
+  become: true
+  get_url:
+    url: https://storage.googleapis.com/kubernetes-release/release/v1.10.2/bin/linux/amd64/kube-scheduler
+    dest: /usr/local/bin/kube-scheduler
+    mode: 0755
+
+- name: download kubectl
+  become: true
+  get_url:
+    url: https://storage.googleapis.com/kubernetes-release/release/v1.10.2/bin/linux/amd64/kubectl
+    dest: /usr/local/bin/kubectl
+    mode: 0755
+
+- name: copy ca key
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/ca-key.pem
+    dest: /var/lib/kubernetes/ca-key.pem
+
+- name: copy ca cert
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/ca.pem
+    dest: /var/lib/kubernetes/ca.pem
+
+- name: copy api server key
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/kubernetes-key.pem
+    dest: /var/lib/kubernetes/kubernetes-key.pem
+
+- name: copy api server cert
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/kubernetes.pem
+    dest: /var/lib/kubernetes/kubernetes.pem
+
+- name: copy service account key
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/service-account-key.pem
+    dest: /var/lib/kubernetes/service-account-key.pem
+
+- name: copy service account cert
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/service-account.pem
+    dest: /var/lib/kubernetes/service-account.pem
+
+- name: copy encryption config
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/encryption-config.yaml
+    dest: /var/lib/kubernetes/encryption-config.yaml
+
+- name: copy kube controller manager kubeconfig
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/kube-controller-manager.kubeconfig
+    dest: /var/lib/kubernetes/kube-controller-manager.kubeconfig
+
+- name: copy kube scheduler kubeconfig
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/kube-scheduler.kubeconfig
+    dest: /var/lib/kubernetes/kube-scheduler.kubeconfig
+
+- name: copy kube scheduler yaml
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/kube-scheduler.yaml
+    dest: /etc/kubernetes/config/kube-scheduler.yaml
+
+- name: copy admin kubeconfig
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/admin.kubeconfig
+    dest: /home/{{ setup_user }}/admin.kubeconfig
+
+- name: init an empty list
+  set_fact:
+    etcd_list: []
+
+- name: forming list of etcd members
+  set_fact:
+    etcd_list: "{{ etcd_list }} + [ 'https://' ] + [ '{{ item.value.ipaddress}}' ] + [ ':2379' ] + [ ',' ]"
+  with_dict: "{{ host_roles }}"
+  when: item.value.type == "master"
+
+- name: forming string from list
+  set_fact:
+    etcd_members: "{{ etcd_list | join('') }}"
+
+- name: remove last right comma from the string
+  set_fact:
+    etcd_members: "{{ etcd_members.rstrip(',') }}"
+
+#- name: check formed etcd_members string - debug section
+#  debug: msg="{{ etcd_members }}"
+
+- name: generate kube apiserver systemd config
+  become: true
+  template:
+    src: /etc/ansible/roles/kubernetes/templates/kube_apiserver_service.j2
+    dest: "/etc/systemd/system/kube-apiserver.service"
+    mode: 0644
+
+- name: copy kube scheduler systemd config
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/kube-scheduler.service
+    dest: /etc/systemd/system/kube-scheduler.service
+
+- name: generate kube controller manager systemd config
+  become: true
+  template:
+    src: /etc/ansible/roles/kubernetes/templates/kube_controller_manager_service.j2
+    dest: "/etc/systemd/system/kube-controller-manager.service"
+    mode: 0644
+
+- name: start kube-apiserver service
+  become: true
+  systemd:
+    state: started
+    enabled: yes
+    name: "kube-apiserver"
+
+- name: start kube-scheduler service
+  become: true
+  systemd:
+    state: started
+    enabled: yes
+    name: "kube-scheduler"
+
+- name: start kube-controller-manager service
+  become: true
+  systemd:
+    state: started
+    enabled: yes
+    name: "kube-controller-manager"
+
+- name: waiting for k8s cluster setting up
+  shell: sleep 15
+
+- name: install nginx
+  become: true
+  apt:
+    name: nginx
+    state: present
+
+- name: start nginx service
+  become: true
+  systemd:
+    state: started
+    enabled: yes
+    name: "nginx"
+
+- name: copy nginx config
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/kubernetes.default.svc.cluster.local
+    dest: /etc/nginx/sites-available/kubernetes.default.svc.cluster.local
+
+- name: create symbolic link for nginx configuration
+  become: true
+  file:
+    src: /etc/nginx/sites-available/kubernetes.default.svc.cluster.local
+    dest: /etc/nginx/sites-enabled/kubernetes.default.svc.cluster.local
+    state: link
+
+- name: restart nginx
+  become: true
+  systemd:
+    name: nginx
+    daemon_reload: yes
+    state: restarted
+
+# Restart all - debug section
+#- name: restart all k8s control plane components
+#  become: true
+#  shell: sleep 2
+#  notify:
+#    - restart etcd
+#    - restart kube-scheduler
+#    - restart kube-controller-manager
+#    - restart kube-apiserver
+#    - restart nginx
+
+#- name: waiting 15 seconds after restarting all control plane components
+#  shell: sleep 15
+
+- name: copy cluster role definition
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/system-kube-apiserver-to-kubelet.yaml
+    dest: /home/{{ setup_user }}/system-kube-apiserver-to-kubelet.yaml
+
+- name: copy cluster role binding definition
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/cluster-role-to-kubernetes-binding.yaml
+    dest: /home/{{ setup_user }}/cluster-role-to-kubernetes-binding.yaml
+
+- name: create cluster role
+  shell: kubectl apply --kubeconfig /home/{{ setup_user }}/admin.kubeconfig -f /home/{{ setup_user }}/system-kube-apiserver-to-kubelet.yaml
+  when: ansible_hostname == "host1"
+
+- name: create cluster role binding to kubernetes user
+  shell: kubectl apply --kubeconfig /home/{{ setup_user }}/admin.kubeconfig -f /home/{{ setup_user }}/cluster-role-to-kubernetes-binding.yaml
+  when: ansible_hostname == "host1"
+
+- name: check k8s cluster state
+  shell: kubectl get componentstatuses
+  register: k8s_state
+
+- name: report k8s cluster state
+  debug: msg="{{ k8s_state.stdout }}"
+
+- name: check nginx proxy health status
+  shell: curl -H "Host:kubernetes.default.svc.cluster.local" -i http://127.0.0.1/healthz
+  register: nginx_state
+
+- name: report nginx proxy health status
+  debug: msg="{{ nginx_state.stdout }}"

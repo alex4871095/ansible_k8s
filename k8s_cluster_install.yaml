@@ -1,0 +1,8 @@
+---
+- hosts:
+    - masters
+    - workers
+    - jumphost
+ 
+  roles:
+    - kubernetes

@@ -1,0 +1,50 @@
+---
+- include: 01_setup_client_tools.yaml
+  tags: install_tools
+  when:
+    "'jumphost' in group_names"
+
+- include: 02_gen_ssl_certs.yaml
+  tags: gen_pki
+  when:
+    "'jumphost' in group_names"
+
+- include: 03_gen_kubeconfigs.yaml
+  tags: gen_kubecfg
+  when:
+    "'jumphost' in group_names"
+
+- include: 04_gen_crypto_config.yaml
+  tags: gen_crypto
+  when:
+    "'jumphost' in group_names"
+
+- include: 05_bootstrap_etcd_cluster.yaml
+  tags: etcd_cluster
+  when:
+    "'masters' in group_names"
+
+- include: 06_bootstrap_k8s_control_plane.yaml
+  tags: masters
+  when:
+    "'masters' in group_names"
+
+- include: 07_bootstrap_k8s_worker_nodes.yaml
+  tags: workers
+  when:
+    "'workers' in group_names"
+
+- include: 08_set_admin_kubeconfig_for_ra.yaml
+  tags: setup_kubectl_ra
+  when:
+    "'jumphost' in group_names"
+
+- include: 09_deploy_dns_cluster_addon.yaml
+  tags: deploy_kube_dns
+  when:
+    "'jumphost' in group_names"
+
+- include: 10_deploy_kube_dashboard.yaml
+  tags: deploy_dashboard
+  when:
+    "'jumphost' in group_names"

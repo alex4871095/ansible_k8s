@@ -1,0 +1,44 @@
+---
+- name: generate dns add-on config
+  become: true
+  template:
+    src: /etc/ansible/roles/kubernetes/templates/kube_dns.j2
+    dest: "/etc/ansible/roles/kubernetes/files/kube-dns.yaml"
+    mode: 0644
+
+- name: deploy dns cluster add-on
+  shell: kubectl create -f /etc/ansible/roles/kubernetes/files/kube-dns.yaml
+
+- name: waiting for dns add-on setting up
+  shell: sleep 60
+
+- name: check dns add-on state
+  shell: kubectl get pods -l k8s-app=kube-dns -n kube-system
+  register: dns_state
+
+- name: show dns pod state
+  debug: msg="{{ dns_state.stdout }}"
+
+- name: create busybox deployment
+  shell: kubectl run busybox --image=busybox --command -- sleep 3600
+
+- name: wait for busybox pod starting up
+  shell: sleep 60
+
+- name: check busybox state
+  shell: kubectl get pods -l run=busybox
+  register: busybox_state
+
+- name: show busybox pod state
+  debug: msg="{{ busybox_state.stdout }}"
+
+- name: get busybox pod name
+  shell: kubectl get pods -l run=busybox -o jsonpath="{.items[0].metadata.name}"
+  register: busybox_pod
+
+- name: check dns resolution
+  shell: "kubectl exec -ti {{ busybox_pod.stdout }} -- nslookup kubernetes"
+  register: resolution_state
+
+- name: show dns resolution
+  debug: msg="{{ resolution_state.stdout }}"

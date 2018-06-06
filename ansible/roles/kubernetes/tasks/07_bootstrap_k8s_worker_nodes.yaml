@@ -1,0 +1,222 @@
+---
+- name: create base directories
+  become: true
+  file:
+    path: "{{ item.path }}"
+    mode: 0755
+    state: directory
+  with_items:
+    - {path: "/etc/cni/net.d"}
+    - {path: "/opt/cni/bin"}
+    - {path: "/var/lib/kubelet"}
+    - {path: "/var/lib/kube-proxy"}
+    - {path: "/var/lib/kubernetes"}
+    - {path: "/var/run/kubernetes"}
+    - {path: "/etc/containerd"}
+
+- name: download kubectl
+  become: true
+  get_url:
+    url: https://storage.googleapis.com/kubernetes-release/release/v1.10.2/bin/linux/amd64/kubectl
+    dest: /usr/local/bin/kubectl
+    mode: 0755
+
+- name: download kube-proxy
+  become: true
+  get_url:
+    url: https://storage.googleapis.com/kubernetes-release/release/v1.10.2/bin/linux/amd64/kube-proxy
+    dest: /usr/local/bin/kube-proxy
+    mode: 0755
+
+- name: download kubelet
+  become: true
+  get_url:
+    url: https://storage.googleapis.com/kubernetes-release/release/v1.10.2/bin/linux/amd64/kubelet
+    dest: /usr/local/bin/kubelet
+    mode: 0755
+
+- name: download runsc
+  become: true
+  get_url:
+    url: https://storage.googleapis.com/kubernetes-the-hard-way/runsc
+    dest: /usr/local/bin/runsc
+    mode: 0755
+
+- name: download runc
+  become: true
+  get_url:
+    url: https://github.com/opencontainers/runc/releases/download/v1.0.0-rc5/runc.amd64
+    dest: /usr/local/bin/runc
+    mode: 0755
+
+- name: download crictl
+  get_url:
+    url: https://github.com/kubernetes-incubator/cri-tools/releases/download/v1.0.0-beta.0/crictl-v1.0.0-beta.0-linux-amd64.tar.gz
+    dest: ~/crictl-v1.0.0-beta.0-linux-amd64.tar.gz
+    mode: 0644
+
+- name: download cni plugins
+  get_url:
+    url: https://github.com/containernetworking/plugins/releases/download/v0.6.0/cni-plugins-amd64-v0.6.0.tgz
+    dest: ~/cni-plugins-amd64-v0.6.0.tgz
+    mode: 0644
+
+- name: download containerd
+  get_url:
+    url: https://github.com/containerd/containerd/releases/download/v1.1.0/containerd-1.1.0.linux-amd64.tar.gz
+    dest: ~/containerd-1.1.0.linux-amd64.tar.gz
+    mode: 0644
+
+- name: extract crictl
+  become: true
+  unarchive:
+    src: /home/{{ setup_user }}/crictl-v1.0.0-beta.0-linux-amd64.tar.gz
+    dest: /usr/local/bin/
+    remote_src: yes
+
+- name: extract cni plugins
+  become: true
+  unarchive:
+    src: /home/{{ setup_user }}/cni-plugins-amd64-v0.6.0.tgz
+    dest: /opt/cni/bin/
+    remote_src: yes
+
+- name: extract containerd
+  become: true
+  unarchive:
+    src: /home/{{ setup_user }}/containerd-1.1.0.linux-amd64.tar.gz
+    dest: /
+    remote_src: yes
+
+- name: set pod network variable
+  set_fact:
+    pod_network_variable: "{{ item.value.pod_network }}"
+  with_dict: "{{ host_roles }}"
+  when: item.key == "{{ ansible_hostname }}"
+
+#- name: check pod_network_variable - debug section
+#  debug: msg="{{ ansible_hostname }}, {{ pod_network_variable }}"
+
+- name: configure cni networking - bridge
+  become: true
+  template:
+    src: /etc/ansible/roles/kubernetes/templates/bridge.j2
+    dest: "/etc/cni/net.d/10-bridge.conf"
+    mode: 0644
+
+- name: configure cni networking - loopback
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/loopback.conf
+    dest: /etc/cni/net.d/99-loopback.conf
+
+- name: copy containerd config
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/containerd.config
+    dest: /etc/containerd/config.toml
+
+- name: copy systemd containerd config
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/containerd.service
+    dest: /etc/systemd/system/containerd.service
+
+- name: copy kubelet key
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/{{ ansible_hostname }}-key.pem
+    dest: /var/lib/kubelet/{{ ansible_hostname }}-key.pem
+
+- name: copy kubelet cert
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/{{ ansible_hostname }}.pem
+    dest: /var/lib/kubelet/{{ ansible_hostname }}.pem
+
+- name: copy ca cert
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/ca.pem
+    dest: /var/lib/kubernetes/ca.pem
+
+- name: copy kubelet config
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/{{ ansible_hostname }}.kubeconfig
+    dest: /var/lib/kubelet/kubeconfig
+
+- name: generate kubelet-config.yaml
+  become: true
+  template:
+    src: /etc/ansible/roles/kubernetes/templates/kubelet_config.j2
+    dest: "/var/lib/kubelet/kubelet-config.yaml"
+    mode: 0644
+
+- name: copy systemd kubelet config
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/kubelet.service
+    dest: /etc/systemd/system/kubelet.service
+
+- name: copy kube-proxy config
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/kube-proxy.kubeconfig
+    dest: /var/lib/kube-proxy/kubeconfig
+
+- name: generate kube-proxy-config.yaml
+  become: true
+  template:
+    src: /etc/ansible/roles/kubernetes/templates/kube_proxy_config.j2
+    dest: "/var/lib/kube-proxy/kube-proxy-config.yaml"
+    mode: 0644
+
+- name: copy systemd kube-proxy config
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/kube-proxy.service
+    dest: /etc/systemd/system/kube-proxy.service
+
+- name: start containerd service
+  become: true
+  systemd:
+    state: started
+    enabled: yes
+    name: "containerd"
+
+- name: start kubelet service
+  become: true
+  systemd:
+    state: started
+    enabled: yes
+    name: "kubelet"
+
+- name: start kube-proxy service
+  become: true
+  systemd:
+    state: started
+    enabled: yes
+    name: "kube-proxy"
+
+# Restart all - debug section
+#- name: restart all k8s worker components
+#  become: true
+#  shell: sleep 2
+#  notify:
+#    - restart kubelet
+#    - restart kube-proxy
+#    - restart containerd
+
+#- name: waiting 15 seconds after restarting all k8s worker components
+#  shell: sleep 15

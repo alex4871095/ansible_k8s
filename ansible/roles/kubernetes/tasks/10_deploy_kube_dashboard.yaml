@@ -1,0 +1,6 @@
+---
+- name: create dashboard deployment
+  shell: kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/master/src/deploy/alternative/kubernetes-dashboard.yaml
+
+- name: create dashboard role
+  shell: kubectl create -f /etc/ansible/roles/kubernetes/files/dashboard-admin.yaml

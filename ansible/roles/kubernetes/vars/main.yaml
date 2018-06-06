@@ -1,0 +1,41 @@
+---
+setup_user: alex
+pod_network_cidr: 10.100.0.0/16
+svc_network_cidr: 10.200.0.0/24
+kube_default_svc: 10.200.0.1
+kube_cluster_dns: 10.200.0.254
+cluster_public_ip: 192.168.1.108
+jumphost_internal_ip: 192.168.35.1
+
+host_roles:
+  homelab:
+    type: jumphost
+    fqdn: localhost
+    ipaddress: 127.0.0.1
+  host1:
+    type: master
+    fqdn: host1.cluster.local
+    ipaddress: 192.168.35.101
+  host2:
+    type: master
+    fqdn: host2.cluster.local
+    ipaddress: 192.168.35.102
+  host3:
+    type: master
+    fqdn: host3.cluster.local
+    ipaddress: 192.168.35.103
+  host4:
+    type: worker
+    fqdn: host4.cluster.local
+    ipaddress: 192.168.35.104
+    pod_network: 10.100.0.0/24
+  host5:
+    type: worker
+    fqdn: host5.cluster.local
+    ipaddress: 192.168.35.105
+    pod_network: 10.100.1.0/24
+  host6:
+    type: worker
+    fqdn: host6.cluster.local
+    ipaddress: 192.168.35.106
+    pod_network: 10.100.2.0/24

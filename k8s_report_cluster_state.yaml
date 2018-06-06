@@ -1,0 +1,46 @@
+- name: Report k8s cluster state
+  hosts: host1
+
+  tasks:
+    - name: "Retrieve componentstatus"
+      command: "kubectl get componentstatus"
+      register: compstat 
+
+    - name: "Cluster component status" 
+      debug: msg="{{compstat.stdout_lines}}"
+
+    - name: "Retrieve nodes"
+      command: "kubectl get nodes -o wide"
+      register: nodes 
+
+    - name: "Cluster nodes" 
+      debug: msg="{{nodes.stdout_lines}}"
+
+    - name: "Retrieve deployments"
+      command: "kubectl get deployments --all-namespaces -o wide"
+      register: deployments 
+
+    - name: "Cluster deployments"
+      debug: msg="{{deployments.stdout_lines}}"
+
+    - name: "Retrieve pods"
+      command: "kubectl get pods --all-namespaces -o wide"
+      register: pods 
+
+    - name: "Cluster pods"            
+      debug: msg="{{pods.stdout_lines}}"
+
+    - name: "Retrieve svc"
+      command: "kubectl get svc --all-namespaces -o wide"
+      register: svc 
+
+    - name: "Cluster services"
+      debug: msg="{{svc.stdout_lines}}"
+
+    - name: "Retrieve ep"
+      command: "kubectl get ep --all-namespaces -o wide"
+      register: ep 
+
+    - name: "Cluster endpoints"
+      debug: msg="{{ep.stdout_lines}}"
+

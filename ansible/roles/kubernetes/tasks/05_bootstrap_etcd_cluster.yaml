@@ -1,0 +1,92 @@
+---
+- name: create base directories
+  become: true
+  file:
+    path: "{{ item.path }}"
+    mode: 0755
+    state: directory
+  with_items:
+    - {path: "/etc/etcd"}
+    - {path: "/var/lib/etcd"}
+
+- name: download etcd
+  get_url:
+    url: https://github.com/coreos/etcd/releases/download/v3.3.5/etcd-v3.3.5-linux-amd64.tar.gz
+    dest: ~/etcd-v3.3.5-linux-amd64.tar.gz
+    mode: 0644
+
+- name: extract etcd
+  unarchive:
+    src: ~/etcd-v3.3.5-linux-amd64.tar.gz
+    dest: ~/
+    remote_src: yes
+
+- name: move etcd binaries to appropriate dir
+  become: true
+  shell: mv /home/{{ setup_user }}/etcd-v3.3.5-linux-amd64/etcd* /usr/local/bin/
+
+- name: copy cluster ca
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/ca.pem
+    dest: /etc/etcd/ca.pem
+
+- name: copy api server key
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/kubernetes-key.pem
+    dest: /etc/etcd/kubernetes-key.pem
+
+- name: copy api server cert
+  become: true
+  copy:
+    mode: 0644
+    src: /etc/ansible/roles/kubernetes/files/kubernetes.pem
+    dest: /etc/etcd/kubernetes.pem
+
+- name: init an empty list
+  set_fact:
+    etcd_list: []
+
+- name: forming list of etcd members
+  set_fact:
+    etcd_list: "{{ etcd_list }} + [ '{{ item.key }}' ] + [ '=https://' ] + [ '{{ item.value.ipaddress}}' ] + [ ':2380' ] + [ ',' ]"
+  with_dict: "{{ host_roles }}"
+  when: item.value.type == "master"
+
+- name: forming string from list
+  set_fact:
+    etcd_members: "{{ etcd_list | join('') }}"
+
+- name: remove last right comma from the string
+  set_fact:
+    etcd_members: "{{ etcd_members.rstrip(',') }}"
+
+#- name: check formed etcd_members string - debug section
+#  debug: msg="{{ etcd_members }}"
+
+- name: generate etcd systemd config
+  become: true
+  template:
+    src: /etc/ansible/roles/kubernetes/templates/etcd_service.j2
+    dest: "/etc/systemd/system/etcd.service"
+    mode: 0644
+
+- name: start etcd service
+  become: true
+  systemd:
+    state: started
+    enabled: yes
+    name: "etcd"
+
+- name: waiting for etcd cluster setting up
+  shell: sleep 15
+
+- name: check etcd cluster state
+  shell: ETCDCTL_API=3 etcdctl member list --endpoints=https://127.0.0.1:2379 --cacert=/etc/etcd/ca.pem --cert=/etc/etcd/kubernetes.pem --key=/etc/etcd/kubernetes-key.pem
+  register: etcd_output
+
+- name: report etcd cluster state
+  debug: msg="{{ etcd_output.stdout}}"

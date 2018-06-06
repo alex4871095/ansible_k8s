@@ -1,5 +1,7 @@
 Automation of Kubernetes cluster provisioning with Ansible
 
+Following Kubernetes The Hard Way by Kelsey Hightower
+
 Local lab - Intel Core i7 2600 (8 cores with HT), 16G, Ubuntu 16.04
 
 Internet---192.168.1.108 eno1-jumphost-vboxnet0 192.168.35.1---k8s_cluster VMs

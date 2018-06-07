@@ -2,7 +2,7 @@ Automation of Kubernetes cluster provisioning with Ansible
 
 Following Kubernetes The Hard Way by Kelsey Hightower
 
-Local lab - Intel Core i7 2600 (8 cores with HT), 16G, Ubuntu 16.04
+Local lab - Intel Core i7 2600 (8 cores with HT), 16GB, Ubuntu 16.04
 
 Internet---192.168.1.108 eno1-jumphost-vboxnet0 192.168.35.1---k8s_cluster VMs
 
@@ -18,3 +18,7 @@ and main.yaml file in ansible/roles/kubernetes/vars to match your address plan, 
 6. Run ansible-playbook k8s_cluster_install.yaml --ask-become-pass
 7. Run ansible-playbook k8s_report_cluster_state.yaml
 8. Perform Smoke test from Kubernetes The Hard Way, and beyond.
+
+If you need to re-deploy k8s cluster:
+1. Run vagrant destroy
+2. Remove genereated files in /etc/ansible/roles/kubernetes/files
